@@ -27,3 +27,46 @@ Redis只有在字符串不需要修改的时候采用C字符串，其余情况�
     
 5.兼容部分C字符串的函数
     这也是为什么SDS这个结构里的len是buf中真正元素的个数，而buf中最后还添加一个'\0'的原因，例如printf(),strcmp()等函数，可以直接使用。
+
+
+众所周知，Redis采用C语言编写，而C语言没有list这种数据结构。所以Redis的list长这样
+
+struct listNode
+{
+    struct listNode* prev;
+    struct listNode* next;
+    void* value;
+};
+
+typedef struct list
+{
+    listNode* head;
+    listNode* tail;
+    unsigned long len;
+
+    void* (*dup)(void* ptr);
+    void （*free)(void* ptr);
+    int (*match)(void* dest,void* src);
+}list;
+
+这里不得不说Redis的设计很精妙。如果让我(菜鸡的代表)实现，我觉得只有一个listNode结构就够了，要不咋说人家是大佬呢。
+
+首先，看那三个函数指针。这就使得我们的链表具有多种形态，
+
+dup用于复制链表节点所保存的值；                                                                                                           free用于释放链表节点所保存的值；                                                                                                           match用于对比链表节点所保存的值和另一个输入值是否相等。
+
+解释一下dup就是复制一个节点的函数，因为有指针，所以复杂度O(1);free就是删除一个节点的函数O(1)；match就是一个比较节点value的函数。
+
+这样设计有什么好处呢？
+双端：链表节点有prev和next指针，获取头节点和尾节点的复杂度都是O(1)
+
+无环：表头节点的prev和表尾节点的next都指向NULL
+
+有表头和表尾指针：查表头和表尾元素的复杂度O(1)
+
+带链表长度计数器：可以直接获取链表的长度O(1)
+
+多态：因为链表节点的value是void* 类型，因此这个数据可以是各种类型的数据。dup、free和match可以为你存入的数据类型量身定制函数，因此这个数据结构是具有多种形态的。
+
+
+
